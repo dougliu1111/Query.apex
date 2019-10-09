@@ -29,8 +29,6 @@ public class Query {
     }
 
     public Query(String objectName, String namespace) {
-        this();
-
         setNamespace(namespace);
 
         // Get Schema.SObjectType
@@ -49,8 +47,6 @@ public class Query {
     }
 
     public Query(Schema.SObjectType objectType) {
-        this();
-
         this.objectName = objectType.getDescribe().getName();
         this.objectType = objectType;
 
@@ -118,6 +114,86 @@ public class Query {
             fieldStrings.add(field.getDescribe().getName());
         }
         return selectFields(fieldStrings);
+    }
+
+    public Query count(String field) {
+        aggregateList.add(new AggregateTuple(COUNT, field));
+        return this;
+    }
+
+    public Query count(String field, String alias) {
+        aggregateList.add(new AggregateTuple(COUNT, field, alias));
+        return this;
+    }
+
+    public Query max(String field) {
+        aggregateList.add(new AggregateTuple(MAX, field));
+        return this;
+    }
+
+    public Query max(String field, String alias) {
+        aggregateList.add(new AggregateTuple(MAX, field, alias));
+        return this;
+    }
+
+    public Query min(String field) {
+        aggregateList.add(new AggregateTuple(MIN, field));
+        return this;
+    }
+
+    public Query min(String field, String alias) {
+        aggregateList.add(new AggregateTuple(MIN, field, alias));
+        return this;
+    }
+
+    public Query avg(String field) {
+        aggregateList.add(new AggregateTuple(AVG, field));
+        return this;
+    }
+
+    public Query avg(String field, String alias) {
+        aggregateList.add(new AggregateTuple(AVG, field, alias));
+        return this;
+    }
+
+    public Query sum(String field) {
+        aggregateList.add(new AggregateTuple(SUM, field));
+        return this;
+    }
+
+    public Query sum(String field, String alias) {
+        aggregateList.add(new AggregateTuple(SUM, field, alias));
+        return this;
+    }
+
+    public Query countDistinct(String field) {
+        aggregateList.add(new AggregateTuple(COUNT_DISTINCT, field));
+        return this;
+    }
+
+    public Query countDistinct(String field, String alias) {
+        aggregateList.add(new AggregateTuple(COUNT_DISTINCT, field, alias));
+        return this;
+    }
+
+    public Query groupBy(String fields) {
+        if (fields.contains(',')) {
+            // parse the fieldNames separated by ','
+            List<String> fieldList = fields.split(', *');
+
+            return groupBy(new Set<String>(fieldList));
+        } else {
+            return groupBy(new Set<String>{fields});
+        }
+    }
+
+    public Query groupBy(Set<String> fieldSet) {
+        for (String field : fieldSet) {
+            field = appendNamespaceToField(field);
+            field = field.toLowerCase();
+            groupByFields.add(field);
+        }
+        return this;
     }
 
     /*
@@ -358,6 +434,119 @@ public class Query {
     }
 
     /*
+     * Add a condition
+     * Example: addConditionIncludes('Channel', 'MyChannel')
+     *          the condition is equivalent to "Channel INCLUDES ('MyChannel')"
+     */
+    public Query addConditionIncludes(String lhs, String rhs) {
+        return addCondition(conditionIncludes(lhs, rhs));
+    }
+
+    /*
+     * Add a condition
+     * Example: addConditionIncludes(QuckText.Channel, 'MyChannel')
+     *          the condition is equivalent to "Channel INCLUDES ('MyChannel')"
+     */
+    public Query addConditionIncludes(Schema.SObjectField lhs, String rhs) {
+        return addCondition(conditionIncludes(lhs.getDescribe().getName(), rhs));
+    }
+
+    /*
+     * Add a condition
+     * Example: addConditionIncludes('Channel', new List<String>{'MyChannel'})
+     *          the condition is equivalent to "Channel INCLUDES ('MyChannel')"
+     */
+    public Query addConditionIncludes(String lhs, List<String> rhs) {
+        return addCondition(conditionIncludes(lhs, rhs));
+    }
+
+    /*
+     * Add a condition
+     * Example: addConditionIncludes(QuckText.Channel, new List<String>{'MyChannel'})
+     *          the condition is equivalent to "Channel INCLUDES ('MyChannel')"
+     */
+    public Query addConditionIncludes(Schema.SObjectField lhs, List<String> rhs) {
+        return addCondition(conditionIncludes(lhs.getDescribe().getName(), rhs));
+    }
+
+    /*
+     * Add a condition
+     * Example: addConditionIncludes('Channel', new Set<String>{'MyChannel'})
+     *          the condition is equivalent to "Channel INCLUDES ('MyChannel')"
+     */
+    public Query addConditionIncludes(String lhs, Set<String> rhs) {
+        return addCondition(conditionIncludes(lhs, rhs));
+    }
+
+    /*
+     * Add a condition
+     * Example: addConditionIncludes(QuckText.Channel, new Set<String>{'MyChannel'})
+     *          the condition is equivalent to "Channel INCLUDES ('MyChannel')"
+     */
+    public Query addConditionIncludes(Schema.SObjectField lhs, Set<String> rhs) {
+        return addCondition(conditionIncludes(lhs.getDescribe().getName(), rhs));
+    }
+
+    /*
+     * Add a condition
+     * Example: addConditionExcludes('Channel', 'MyChannel')
+     *          the condition is equivalent to "Channel EXCLUDES ('MyChannel')"
+     */
+
+    public Query addConditionExcludes(String lhs, String rhs) {
+        return addCondition(conditionExcludes(lhs, rhs));
+    }
+
+    /*
+     * Add a condition
+     * Example: addConditionExcludes(QuckText.Channel, 'MyChannel')
+     *          the condition is equivalent to "Channel EXCLUDES ('MyChannel')"
+     */
+
+    public Query addConditionExcludes(Schema.SObjectField lhs, String rhs) {
+        return addCondition(conditionExcludes(lhs.getDescribe().getName(), rhs));
+    }
+
+    /*
+     * Add a condition
+     * Example: addConditionExcludes('Channel', new List<String>{'MyChannel'})
+     *          the condition is equivalent to "Channel EXCLUDES ('MyChannel')"
+     */
+
+    public Query addConditionExcludes(String lhs, List<String> rhs) {
+        return addCondition(conditionExcludes(lhs, rhs));
+    }
+
+    /*
+     * Add a condition
+     * Example: addConditionExcludes(QuckText.Channel, new List<String>{'MyChannel'})
+     *          the condition is equivalent to "Channel EXCLUDES ('MyChannel')"
+     */
+
+    public Query addConditionExcludes(Schema.SObjectField lhs, List<String> rhs) {
+        return addCondition(conditionExcludes(lhs.getDescribe().getName(), rhs));
+    }
+
+    /*
+     * Add a condition
+     * Example: addConditionExcludes('Channel', new Set<String>{'MyChannel'})
+     *          the condition is equivalent to "Channel EXCLUDES ('MyChannel')"
+     */
+
+    public Query addConditionExcludes(String lhs, Set<String> rhs) {
+        return addCondition(conditionExcludes(lhs, rhs));
+    }
+
+    /*
+     * Add a condition
+     * Example: addConditionExcludes(QuckText.Channel, new Set<String>{'MyChannel'})
+     *          the condition is equivalent to "Channel EXCLUDES ('MyChannel')"
+     */
+
+    public Query addConditionExcludes(Schema.SObjectField lhs, Set<String> rhs) {
+        return addCondition(conditionExcludes(lhs.getDescribe().getName(), rhs));
+    }
+    /*
      * Add condition with a Condition object
      */
     public Query addCondition(Condition condition) {
@@ -555,6 +744,118 @@ public class Query {
      */
     public static Condition conditionNotLike(Schema.SObjectField lhs, Object rhs) {
         return conditionNotLike(lhs.getDescribe().getName(), rhs);
+    }
+
+    /*
+     * Create a condition
+     * Example: conditionIncludes('Channel', 'MyChannel')
+     *          the condition is equivalent to "Channel INCLUDES ('MyChannel')"
+     */
+    public static Condition conditionIncludes(String lhs, String rhs) {
+        return conditionIncludes(lhs, new Set<String>{rhs});
+    }
+
+    /*
+     * Create a condition
+     * Example: conditionIncludes(QuickText.Channel, 'MyChannel')
+     *          the condition is equivalent to "Channel INCLUDES ('MyChannel')"
+     */
+    public static Condition conditionIncludes(Schema.SObjectField lhs, String rhs) {
+        return conditionIncludes(lhs.getDescribe().getName(), new Set<String>{rhs});
+    }
+
+    /*
+     * Create a condition
+     * Example: conditionIncludes(Channel, new List<String>{'MyChannel'})
+     *          the condition is equivalent to "Channel INCLUDES ('MyChannel')"
+     */
+    public static Condition conditionIncludes(String lhs, List<String> rhs) {
+        return conditionIncludes(lhs, new Set<String>(rhs));
+    }
+
+    /*
+     * Create a condition
+     * Example: conditionIncludes(QuickText.Channel, new List<String>{'MyChannel'})
+     *          the condition is equivalent to "Channel INCLUDES ('MyChannel')"
+     */
+    public static Condition conditionIncludes(Schema.SObjectField lhs, List<String> rhs) {
+        return conditionIncludes(lhs.getDescribe().getName(), new Set<String>(rhs));
+    }
+
+    /*
+     * Create a condition
+     * Example: conditionIncludes(Channel, new Set<String>{'MyChannel'})
+     *          the condition is equivalent to "Channel INCLUDES ('MyChannel')"
+     */
+    public static Condition conditionIncludes(String lhs, Set<String> rhs) {
+        final String formatString = lhs + ' INCLUDES ' + toString(rhs);
+        return new Condition(formatString, rhs);
+    }
+
+    /*
+     * Create a condition
+     * Example: conditionIncludes(QuickText.Channel, new Set<String>{'MyChannel'})
+     *          the condition is equivalent to "Channel INCLUDES ('MyChannel')"
+     */
+    public static Condition conditionIncludes(Schema.SObjectField lhs, Set<String> rhs) {
+        return conditionIncludes(lhs.getDescribe().getName(), rhs);
+    }
+
+    /*
+     * Create a condition
+     * Example: conditionExcludes(Channel, 'MyChannel')
+     *          the condition is equivalent to "QuickText.Channel EXCLUDES ('MyChannel')"
+     */
+
+    public static Condition conditionExcludes(String lhs, String rhs) {
+        return conditionExcludes(lhs, new Set<String>{rhs});
+    }
+
+    /*
+     * Create a condition
+     * Example: conditionExcludes(QuickText.Channel, 'MyChannel')
+     *          the condition is equivalent to "QuickText.Channel EXCLUDES ('MyChannel')"
+     */
+
+    public static Condition conditionExcludes(Schema.SObjectField lhs, String rhs) {
+        return conditionExcludes(lhs.getDescribe().getName(), new Set<String>{rhs});
+    }
+
+    /*
+     * Create a condition
+     * Example: conditionExcludes(Channel, new List<String>{'MyChannel'})
+     *          the condition is equivalent to "QuickText.Channel EXCLUDES ('MyChannel')"
+     */
+    public static Condition conditionExcludes(String lhs, List<String> rhs) {
+        return conditionExcludes(lhs, new Set<String>(rhs));
+    }
+
+    /*
+     * Create a condition
+     * Example: conditionExcludes(QuickText.Channel, new List<String>{'MyChannel'})
+     *          the condition is equivalent to "QuickText.Channel EXCLUDES ('MyChannel')"
+     */
+    public static Condition conditionExcludes(Schema.SObjectField lhs, List<String> rhs) {
+        return conditionExcludes(lhs.getDescribe().getName(), new Set<String>(rhs));
+    }
+
+    /*
+     * Create a condition
+     * Example: conditionExcludes(Channel, new Set<String>{'MyChannel'})
+     *          the condition is equivalent to "QuickText.Channel EXCLUDES ('MyChannel')"
+     */
+    public static Condition conditionExcludes(String lhs, Set<String> rhs) {
+        final String formatString = lhs + ' EXCLUDES ' + toString(rhs);
+        return new Condition(formatString, rhs);
+    }
+
+    /*
+     * Create a condition
+     * Example: conditionExcludes(QuickText.Channel, new Set<String>{'MyChannel'})
+     *          the condition is equivalent to "QuickText.Channel EXCLUDES ('MyChannel')"
+     */
+    public static Condition conditionExcludes(Schema.SObjectField lhs, Set<String> rhs) {
+        return conditionExcludes(lhs.getDescribe().getName(), rhs);
     }
 
     public static Condition doAnd(Condition lhs, Condition rhs) {
@@ -898,6 +1199,23 @@ public class Query {
         return this;
     }
 
+    public static void enforceGlobalSecurity(Boolean enforce) {
+        Query.securityEnforcedGlobal = enforce;
+    }
+
+    public static void enforceGlobalSecurity() {
+        enforceGlobalSecurity(true);
+    }
+
+    public Query enforceSecurity(Boolean enforce) {
+        this.securityEnforced = enforce;
+        return this;
+    }
+
+    public Query enforceSecurity() {
+        return enforceSecurity(true);
+    }
+
     public String toQueryString() {
         return formQueryString();
     }
@@ -950,6 +1268,11 @@ public class Query {
         return Database.query(queryString);
     }
 
+    public List<AggregateResult> aggregate() {
+        String queryString = toQueryString();
+        return Database.query(queryString);
+    }
+
     public List<Id> toIdList() {
         List<Id> ret = new List<Id>();
 
@@ -966,25 +1289,17 @@ public class Query {
     }
 
     /* Private members */
-
-    private Query() {
-        fields = new Set<String>();
-        conditions = new List<String>();
-        childQuerys = new Map<String, Query>();
-        conditionArgs = new List<Object>();
-        parentReferences = new Set<String>();
-        orderList = new List<OrderTuple>();
-    }
+    private Query() {}
 
     // State variables
-    private Set<String> fields;
-    private Set<String> parentReferences;
+    private Set<String> fields = new Set<String>();
+    private Set<String> parentReferences = new Set<String>();
     private Boolean isSelectingAllFields = false;
 
-    private List<String> conditions;
+    private List<String> conditions = new List<String>();
     private static final Integer maxArgSize = 20;
     private Integer conditionArgsIdx = 0;
-    private List<Object> conditionArgs;
+    private List<Object> conditionArgs = new List<Object>();
     private Object conditionArgs0;
     private Object conditionArgs1;
     private Object conditionArgs2;
@@ -1009,9 +1324,9 @@ public class Query {
     private String conditionOperator = 'AND';
     private Integer sizeLimit = -1;
     private Integer resultOffset = -1;
-    private Map<String, Query> childQuerys;
+    private Map<String, Query> childQuerys = new Map<String, Query>();
 
-    private List<OrderTuple> orderList;
+    private List<OrderTuple> orderList = new List<OrderTuple>();
     private class OrderTuple {
         private String fieldName;
         private Boolean ascending = true;
@@ -1032,6 +1347,32 @@ public class Query {
             this.nullsFirst = nullsFirst;
         }
     }
+
+    private List<AggregateTuple> aggregateList = new List<AggregateTuple>();
+    private class AggregateTuple {
+        private String function;
+        private String fieldName;
+        private String alias;
+
+        private AggregateTuple(String function, String fieldName, String alias) {
+            this.function = function;
+            this.fieldName = fieldName;
+            this.alias = alias;
+        }
+
+        private AggregateTuple(String function, String fieldName) {
+            this(function, fieldName, null);
+        }
+    }
+
+    private Set<String> groupByFields = new Set<String>();
+
+    private final String MAX = 'MAX';
+    private final String MIN = 'MIN';
+    private final String AVG = 'AVG';
+    private final String SUM = 'SUM';
+    private final String COUNT = 'COUNT';
+    private final String COUNT_DISTINCT = 'COUNT_DISTINCT';
 
     // Object Schema variables
     private String objectName;
@@ -1064,7 +1405,7 @@ public class Query {
         }
 
         if (!field.getDescribe().isAccessible()) {
-            throw new QueryException('Permission denied: cannot read ' +
+            alertSecurity('Permission denied: cannot read ' +
                     nextItem + ' from object ' + objType.getDescribe().getName());
         }
 
@@ -1111,6 +1452,15 @@ public class Query {
     }
 
     private String addToFieldSet(String fieldName) {
+        fieldName = appendNamespaceToField(fieldName);
+        fieldName = fieldName.toLowerCase();
+
+        fields.add(fieldName);
+
+        return fieldName;
+    }
+
+    private String appendNamespaceToField(String fieldName) {
         if (fieldName.contains('.')) {
             List<String> oldFields = fieldName.split('\\.');
             List<String> newFields = new List<String>();
@@ -1122,10 +1472,6 @@ public class Query {
         } else {
             fieldName = appendNamespace(fieldName);
         }
-
-        fieldName = fieldName.toLowerCase();
-
-        fields.add(fieldName);
 
         return fieldName;
     }
@@ -1176,7 +1522,7 @@ public class Query {
                                       List<Object> args) {
         List<String> argStringList = new List<String>();
 
-        conditions.add(String.escapeSingleQuotes(formatString));
+        conditions.add(formatString);
         conditionArgs.addAll(args);
 
         return this;
@@ -1247,12 +1593,20 @@ public class Query {
 
         query += formFieldString();
 
+        if (!aggregateList.isEmpty()) {
+            query += ' ' + formAggregateString();
+        }
+
         query += ' FROM ' + objectName;
 
         final String conditionString = formConditionString();
 
         if (String.isNotBlank(conditionString)) {
             query += ' WHERE ' + conditionString;
+        }
+
+        if (!groupByFields.isEmpty()) {
+            query += ' GROUP BY ' + formGroupByString();
         }
 
         if (!orderList.isEmpty()) {
@@ -1285,7 +1639,7 @@ public class Query {
             addAllFields();
         }
 
-        if (fields.isEmpty()) {
+        if (fields.isEmpty() && aggregateList.isEmpty()) {
             addToFieldSet('Id');
         }
 
@@ -1298,6 +1652,31 @@ public class Query {
         fieldString = fieldString.removeEnd(', ');
 
         return fieldString;
+    }
+
+    private String formAggregateString() {
+        String aggregateString = '';
+
+        for (AggregateTuple tuple : aggregateList) {
+            checkFieldLevelSecurity(objectType, tuple.fieldName);
+        }
+
+        if (!fields.isEmpty()) {
+            aggregateString += ', ';
+        }
+
+        for (AggregateTuple tuple : aggregateList) {
+            String field = appendNamespaceToField(tuple.fieldName);
+            aggregateString += tuple.function + '(' + field + ')';
+            if (tuple.alias != null) {
+                aggregateString += tuple.alias;
+            }
+            aggregateString += ', ';
+        }
+
+        aggregateString = aggregateString.removeEnd(', ');
+
+        return aggregateString;
     }
 
     private String formConditionString() {
@@ -1343,6 +1722,17 @@ public class Query {
         return subqueryString;
     }
 
+    private String formGroupByString() {
+        String groupByString = '';
+
+        for (String field : groupByFields) {
+            groupByString += field + ', ';
+        }
+        groupByString = groupByString.removeEnd(', ');
+
+        return groupByString;
+    }
+
     private String formOrderByString() {
         String orderByString = '';
         Integer count = 0;
@@ -1383,7 +1773,7 @@ public class Query {
                         ' in object ' + objType.getDescribe().getName());
             }
             if (!fieldMap.get(nextItem).getDescribe().isAccessible()) {
-                throw new QueryException('Permission denied: cannot read ' +
+                alertSecurity('Permission denied: cannot read ' +
                         nextItem + ' from object ' + objType.getDescribe().getName());
             }
         } else {
@@ -1669,6 +2059,27 @@ public class Query {
         return src;
     }
 
+    private static Boolean securityEnforcedGlobal = false;
+    private Boolean securityEnforced = null;
+
+    /*
+     * By default, if field level security is missing, it will print a warning.
+     *
+     * But if the security is enforced, it will throw an exception.
+     *
+     * The flag cam be controlled by the static method `enforceGlobalSecurity` or
+     * the object method `enforceSecurity`.
+     */
+    private void alertSecurity(String msg) {
+        Boolean enforced = securityEnforced != null ? securityEnforced : securityEnforcedGlobal;
+
+        if (enforced) {
+            throw new SecurityException(msg);
+        } else {
+            System.debug(LoggingLevel.WARN, msg);
+        }
+    }
+
     private String namespace = getNamespaceFromClass();
 
     private static String getNamespaceFromClass() {
@@ -1683,6 +2094,9 @@ public class Query {
     }
 
     private class QueryException extends Exception {
+    }
+
+    private class SecurityException extends Exception {
     }
 
     public class DateLiteral {

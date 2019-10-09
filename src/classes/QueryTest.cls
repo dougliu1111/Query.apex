@@ -358,6 +358,51 @@ public class QueryTest {
     }
 
     @isTest
+    static void conditionIncludeTest() {
+        QuickText text = new QuickText(
+            Name = 'MyQuickText',
+            Message = 'MyMessage',
+            Channel = 'Channel1;Channel2'
+        );
+        insert text;
+
+        List<QuickText> result = new Query('QuickText').
+            selectFields('Name, Message, Channel').
+            addConditionIncludes('Channel', 'Channel1').
+            run();
+
+        System.assertEquals(result.size(), 1);
+        System.assertEquals(result[0].Name, 'MyQuickText');
+
+    }
+
+    @isTest
+    static void conditionExcludesTest() {
+        QuickText text1 = new QuickText(
+            Name = 'MyQuickText1',
+            Message = 'MyMessage1',
+            Channel = 'Channel1;Channel2'
+        );
+
+        QuickText text2 = new QuickText(
+            Name = 'MyQuickText2',
+            Message = 'MyMessage2',
+            Channel = 'Channel3;Channel4'
+        );
+
+        insert new List<QuickText> {text1, text2};
+
+        List<QuickText> result = new Query('QuickText').
+            selectFields('Name, Message, Channel').
+            addConditionExcludes('Channel', 'Channel2').
+            run();
+
+        System.assertEquals(result.size(), 1);
+        System.assertEquals(result[0].Name, 'MyQuickText2');
+
+    }
+
+    @isTest
     static void complexConditionTest() {
         createData();
 
@@ -579,10 +624,16 @@ public class QueryTest {
                         selectAllFields().
                         addConditionEq('TotalOpportunityQuantity', 10)
                     ).
+                    addSubquery(
+                        Query.subquery('Tasks').
+                        selectAllFields().
+                        addConditionEq('Subject', 'New Task')
+                    ).
                     run();
 
         assertAccount(accounts.get(0));
         assertOpportunity(accounts.get(0).Opportunities.get(0));
+        assertTask(accounts.get(0).Tasks.get(0));
 
     }
 
@@ -784,6 +835,83 @@ public class QueryTest {
     }
 
     @isTest
+    static void aggregateTest() {
+        Account acc1 = new Account(Name = 'Account 1', Rating = '1', NumberOfEmployees = 1);
+        Account acc2 = new Account(Name = 'Account 2', Rating = '9', NumberOfEmployees = 3);
+        Account acc3 = new Account(Name = 'Account 3', Rating = '1', NumberOfEmployees = 5);
+        Account acc4 = new Account(Name = 'Account 4', Rating = null, NumberOfEmployees = 7);
+
+        insert new List<Account>{acc1, acc2, acc3, acc4};
+
+        AggregateResult result =
+            new Query('Account').
+            count('Name').
+            count('Name', 'countName').
+            countDistinct('Rating').
+            countDistinct('Rating', 'countRating').
+            max('NumberOfEmployees').
+            max('NumberOfEmployees', 'maxEmployee').
+            min('NumberOfEmployees').
+            min('NumberOfEmployees', 'minEmployee').
+            avg('NumberOfEmployees').
+            avg('NumberOfEmployees', 'avgEmployee').
+            sum('NumberOfEmployees').
+            sum('NumberOfEmployees', 'sumEmployee').
+            aggregate()[0];
+
+        System.assertEquals(result.get('countName'), 4);
+        System.assertEquals(result.get('expr0'), 4);
+        System.assertEquals(result.get('countRating'), 2);
+        System.assertEquals(result.get('expr1'), 2);
+        System.assertEquals(result.get('maxEmployee'), 7);
+        System.assertEquals(result.get('expr2'), 7);
+        System.assertEquals(result.get('minEmployee'), 1);
+        System.assertEquals(result.get('expr3'), 1);
+        System.assertEquals(result.get('avgEmployee'), 4);
+        System.assertEquals(result.get('expr4'), 4);
+        System.assertEquals(result.get('sumEmployee'), 16);
+        System.assertEquals(result.get('expr5'), 16);
+    }
+
+    @isTest
+    static void groupByTest() {
+        Account acc1 = new Account(Name = 'Account 1', Rating = '1', NumberOfEmployees = 1);
+        Account acc2 = new Account(Name = 'Account 2', Rating = '9', NumberOfEmployees = 3);
+        Account acc3 = new Account(Name = 'Account 3', Rating = '1', NumberOfEmployees = 5);
+        Account acc4 = new Account(Name = 'Account 4', Rating = null, NumberOfEmployees = 7);
+
+        insert new List<Account>{acc1, acc2, acc3, acc4};
+
+        List<AggregateResult> results =
+            new Query('Account').
+            selectField('Rating').
+            count('Name', 'countName').
+            max('NumberOfEmployees', 'maxEmployee').
+            min('NumberOfEmployees', 'minEmployee').
+            avg('NumberOfEmployees', 'avgEmployee').
+            sum('NumberOfEmployees', 'sumEmployee').
+            groupBy('Rating').
+            aggregate();
+
+        Map<String, AggregateResult> resultMap = new Map<String, AggregateResult>();
+
+        for (AggregateResult result : results) {
+            resultMap.put((String)result.get('Rating'), result);
+        }
+
+        System.assertEquals(resultMap.get('1').get('countName'), 2);
+        System.assertEquals(resultMap.get('1').get('maxEmployee'), 5);
+        System.assertEquals(resultMap.get('1').get('minEmployee'), 1);
+        System.assertEquals(resultMap.get('1').get('avgEmployee'), 3);
+        System.assertEquals(resultMap.get('1').get('sumEmployee'), 6);
+        System.assertEquals(resultMap.get('9').get('countName'), 1);
+        System.assertEquals(resultMap.get('9').get('maxEmployee'), 3);
+        System.assertEquals(resultMap.get('9').get('minEmployee'), 3);
+        System.assertEquals(resultMap.get('9').get('avgEmployee'), 3);
+        System.assertEquals(resultMap.get('9').get('sumEmployee'), 3);
+    }
+
+    @isTest
     static void debugTest() {
         Id id = '001O000000qkv3KIAQ';
         List<Id> idList = new List<Id>{id};
@@ -842,6 +970,13 @@ public class QueryTest {
         opp.IsPrivate = false;
 
         insert opp;
+
+        Task task = new Task();
+        task.WhatId = acc.Id;
+        task.Subject = 'New Task';
+
+        insert task;
+
     }
 
     static void assertAccount(Account acc) {
@@ -858,6 +993,10 @@ public class QueryTest {
         System.assertEquals(opp.Name, 'New Opportunity');
         System.assertEquals(opp.CloseDate, Date.today().addDays(3));
         System.assertEquals(opp.TotalOpportunityQuantity, 10);
+    }
+
+    static void assertTask(Task task) {
+        System.assertEquals(task.Subject, 'New Task');
     }
 
 }
