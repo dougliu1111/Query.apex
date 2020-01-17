@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 public class Query {
+    public static final String VERSION = '1.1.0';
 
     /* Public members */
     public Query(String objectName) {
@@ -33,7 +34,7 @@ public class Query {
 
         // Get Schema.SObjectType
         Map<String, Schema.SObjectType> globalDescribe =
-            Schema.getGlobalDescribe();
+                Schema.getGlobalDescribe();
 
         this.objectName = appendNamespace(objectName);
         this.objectType = globalDescribe.get(this.objectName);
@@ -73,12 +74,12 @@ public class Query {
      * This function allows user provide a single field, or multiple fields
      *      concatenated by ','
      */
-    public Query selectfields(String fieldNames) {
+    public Query selectFields(String fieldNames) {
         if (fieldNames.contains(',')) {
             // parse the fieldNames separated by ','
             List<String> fieldList = fieldNames.split(', *');
 
-            return selectfields(new Set<String>(fieldList));
+            return selectFields(new Set<String>(fieldList));
         } else {
             final String fieldName = fieldNames;
 
@@ -87,21 +88,8 @@ public class Query {
         }
     }
 
-    /*
-     * This function allows user provide a single field
-     */
-    public Query selectfield(String fieldName) {
-        addToFieldSet(fieldName);
-        return this;
-
-    }
-
-    public Query selectField(Schema.SObjectField field) {
-        return selectfields(field);
-    }
-
     public Query selectFields(Schema.SObjectField field) {
-        return selectfield(field.getDescribe().getName());
+        return selectField(field.getDescribe().getName());
     }
 
     public Query selectFields(Set<Schema.SObjectField> fields) {
@@ -109,70 +97,112 @@ public class Query {
     }
 
     public Query selectFields(List<Schema.SObjectField> fields) {
-        List<String> fieldStrings= new List<String>();
+        List<String> fieldStrings = new List<String>();
         for (Schema.SObjectField field : fields) {
             fieldStrings.add(field.getDescribe().getName());
         }
         return selectFields(fieldStrings);
     }
 
+    /*
+     * This function allows user provide a single field
+     */
+    public Query selectField(String fieldName) {
+        addToFieldSet(fieldName);
+        return this;
+    }
+
+    /*
+     * This function allows user provide a single field
+     */
+    public Query selectField(Schema.SObjectField field) {
+        return selectFields(field);
+    }
+
+    /*
+     * Select a single field providing an alias
+     * Only available in aggregate functions
+     */
+    public Query selectField(String fieldName, String alias) {
+        functionFieldList.add(new FunctionFieldTuple(EMPTY, fieldName, alias));
+        return this;
+    }
+
+    /*
+     * Select a single field providing an alias
+     * Only available in aggregate functions
+     */
+    public Query selectField(Schema.SObjectField field, String alias) {
+        return selectField(field.getDescribe().getName(), alias);
+    }
+
     public Query count(String field) {
-        aggregateList.add(new AggregateTuple(COUNT, field));
+        functionFieldList.add(new FunctionFieldTuple(COUNT, field));
         return this;
     }
 
     public Query count(String field, String alias) {
-        aggregateList.add(new AggregateTuple(COUNT, field, alias));
+        functionFieldList.add(new FunctionFieldTuple(COUNT, field, alias));
+        return this;
+    }
+
+    public Query toLabel(String field) {
+        functionFieldList.add(new FunctionFieldTuple(TO_LABEL, field));
+        return this;
+    }
+
+    public Query toLabel(String field, String alias) {
+        functionFieldList.add(new FunctionFieldTuple(TO_LABEL, field, alias));
         return this;
     }
 
     public Query max(String field) {
-        aggregateList.add(new AggregateTuple(MAX, field));
+        functionFieldList.add(new FunctionFieldTuple(MAX, field));
         return this;
     }
 
     public Query max(String field, String alias) {
-        aggregateList.add(new AggregateTuple(MAX, field, alias));
+        functionFieldList.add(new FunctionFieldTuple(MAX, field, alias));
         return this;
     }
 
     public Query min(String field) {
-        aggregateList.add(new AggregateTuple(MIN, field));
+        functionFieldList.add(new FunctionFieldTuple(MIN, field));
         return this;
     }
 
     public Query min(String field, String alias) {
-        aggregateList.add(new AggregateTuple(MIN, field, alias));
+        functionFieldList.add(new FunctionFieldTuple(MIN, field, alias));
         return this;
     }
 
     public Query avg(String field) {
-        aggregateList.add(new AggregateTuple(AVG, field));
+        functionFieldList.add(new FunctionFieldTuple(AVG, field));
         return this;
     }
 
     public Query avg(String field, String alias) {
-        aggregateList.add(new AggregateTuple(AVG, field, alias));
+        functionFieldList.add(new FunctionFieldTuple(AVG, field, alias));
         return this;
     }
 
     public Query sum(String field) {
-        aggregateList.add(new AggregateTuple(SUM, field));
+        functionFieldList.add(new FunctionFieldTuple(SUM, field));
         return this;
     }
 
     public Query sum(String field, String alias) {
-        aggregateList.add(new AggregateTuple(SUM, field, alias));
+        functionFieldList.add(new FunctionFieldTuple(SUM, field, alias));
         return this;
     }
 
     public Query countDistinct(String field) {
-        aggregateList.add(new AggregateTuple(COUNT_DISTINCT, field));
+        functionFieldList.add(new FunctionFieldTuple(COUNT_DISTINCT, field));
         return this;
     }
 
     public Query countDistinct(String field, String alias) {
-        aggregateList.add(new AggregateTuple(COUNT_DISTINCT, field, alias));
+        functionFieldList.add(new FunctionFieldTuple(COUNT_DISTINCT, field, alias));
         return this;
     }
 
@@ -205,10 +235,26 @@ public class Query {
     }
 
     /*
+     * Select all user editable fields
+     */
+    public Query selectEditableFields() {
+        isSelectingEditableFields = true;
+        return this;
+    }
+
+    /*
+     * Select all user creatable fields
+     */
+    public Query selectCreatableFields() {
+        isSelectingCreatableFields = true;
+        return this;
+    }
+
+    /*
      * Select all user accessible fields from a parent field
      */
     public Query selectAllFields(String parentField) {
-        return selectParentfields(parentField);
+        return selectParentFields(parentField);
     }
 
     /*
@@ -251,6 +297,10 @@ public class Query {
 
     public Query lookup(String fieldName, SObject sobj) {
         return lookup(fieldName, new List<SObject>{sobj});
+    }
+
+    public Query lookup(String fieldName, Query query) {
+        return addConditionIn(fieldName, query);
     }
 
     /*
@@ -308,6 +358,24 @@ public class Query {
     }
 
     /*
+     * Add a semi-join condition
+     * Example: addConditionIn('Id', new Query('Opportunity').selectField('AccountId'))
+     *          the condition is equivalent to "Id IN (SELECT AccountId FROM Opportunity)"
+     */
+    public Query addConditionIn(String lhs, Query rhs) {
+        return addCondition(conditionIn(lhs, rhs));
+    }
+
+    /*
+     * Add a semi-join condition
+     * Example: addConditionIn(Account.Id, new Query('Opportunity').selectField('AccountId'))
+     *          the condition is equivalent to "Id IN (SELECT AccountId FROM Opportunity)"
+     */
+    public Query addConditionIn(Schema.SObjectField lhs, Query rhs) {
+        return addCondition(conditionIn(lhs.getDescribe().getName(), rhs));
+    }
+
+    /*
      * Add a condition
      * Example: addConditionNotIn('Name', mySet)
      *          the condition is equivalent to "Name NOT IN :mySet"
@@ -322,6 +390,24 @@ public class Query {
      *          the condition is equivalent to "Name NOT IN :mySet"
      */
     public Query addConditionNotIn(Schema.SObjectField lhs, Object rhs) {
+        return addCondition(conditionNotIn(lhs.getDescribe().getName(), rhs));
+    }
+
+    /*
+     * Add an anti-join condition
+     * Example: addConditionNotIn('Id', new Query('Opportunity').selectField('AccountId'))
+     *          the condition is equivalent to "Id NOT IN (SELECT AccountId FROM Opportunity)"
+     */
+    public Query addConditionNotIn(String lhs, Query rhs) {
+        return addCondition(conditionNotIn(lhs, rhs));
+    }
+
+    /*
+     * Add an anti-join condition
+     * Example: addConditionNotIn(Account.Id, new Query('Opportunity').selectField('AccountId'))
+     *          the condition is equivalent to "Id NOT IN (SELECT AccountId FROM Opportunity)"
+     */
+    public Query addConditionNotIn(Schema.SObjectField lhs, Query rhs) {
         return addCondition(conditionNotIn(lhs.getDescribe().getName(), rhs));
     }
 
@@ -546,15 +632,25 @@ public class Query {
     public Query addConditionExcludes(Schema.SObjectField lhs, Set<String> rhs) {
         return addCondition(conditionExcludes(lhs.getDescribe().getName(), rhs));
     }
+
     /*
      * Add condition with a Condition object
      */
     public Query addCondition(Condition condition) {
         String newConditionString =
-            shiftFormatStringIndice(condition.conditionString, conditionArgsIdx);
+                shiftFormatStringIndice(condition.conditionString, conditionArgs.size());
         newConditionString = '(' + newConditionString + ')';
-        saveConditionArg(condition.args);
-        return addComplexCondition(newConditionString, condition.args);
+        conditions.add(newConditionString);
+        conditionArgs.addAll(condition.args);
+        return this;
+    }
+
+    /*
+     * Add having condition for group by clauses
+     */
+    public Query addHaving(Condition condition) {
+        havingCondition = condition;
+        return this;
     }
 
     /*
@@ -615,6 +711,32 @@ public class Query {
     }
 
     /*
+     * Create a semi-join condition
+     * Example: conditionIn('Id', new Query('Opportunity').selectField('AccountId'))
+     *          the condition is equivalent to "Id IN (SELECT AccountId FROM Opportunity)"
+     */
+    public static Condition conditionIn(String lhs, Query rhs) {
+        final String formatString = lhs + ' IN (' +
+                rhs.formQueryStringPreformat() + ')';
+
+        Condition condition = new Condition();
+
+        condition.conditionString = formatString;
+        condition.args = rhs.conditionArgs;
+
+        return condition;
+    }
+
+    /*
+     * Create a semi-join condition
+     * Example: conditionIn(Account.Id, new Query('Opportunity').selectField('AccountId'))
+     *          the condition is equivalent to "Id IN (SELECT AccountId FROM Opportunity)"
+     */
+    public static Condition conditionIn(Schema.SObjectField lhs, Query rhs) {
+        return conditionIn(lhs.getDescribe().getName(), rhs);
+    }
+
+    /*
      * Create a condition
      * Example: conditionNotIn('Name', mySet)
      *          the condition is equivalent to "Name NOT IN :mySet"
@@ -630,6 +752,32 @@ public class Query {
      *          the condition is equivalent to "Name NOT IN :mySet"
      */
     public static Condition conditionNotIn(Schema.SObjectField lhs, Object rhs) {
+        return conditionNotIn(lhs.getDescribe().getName(), rhs);
+    }
+
+    /*
+     * Create an anti-join condition
+     * Example: conditionNotIn('Id', new Query('Opportunity').selectField('AccountId'))
+     *          the condition is equivalent to "Id NOT IN (SELECT AccountId FROM Opportunity)"
+     */
+    public static Condition conditionNotIn(String lhs, Query rhs) {
+        final String formatString = lhs + ' NOT IN (' +
+                rhs.formQueryStringPreformat() + ')';
+
+        Condition condition = new Condition();
+
+        condition.conditionString = formatString;
+        condition.args = rhs.conditionArgs;
+
+        return condition;
+    }
+
+    /*
+     * Create an anti-join condition
+     * Example: conditionNotIn(Account.Id, new Query('Opportunity').selectField('AccountId'))
+     *          the condition is equivalent to "Id NOT IN (SELECT AccountId FROM Opportunity)"
+     */
+    public static Condition conditionNotIn(Schema.SObjectField lhs, Query rhs) {
         return conditionNotIn(lhs.getDescribe().getName(), rhs);
     }
 
@@ -863,29 +1011,29 @@ public class Query {
     }
 
     public static Condition doAnd(Condition condition0,
-                                  Condition condition1,
-                                  Condition condition2) {
+            Condition condition1,
+            Condition condition2) {
         return doAnd(
                 new List<Condition>{
-                    condition0,
-                    condition1,
-                    condition2
+                        condition0,
+                        condition1,
+                        condition2
                 }
-            );
+        );
     }
 
     public static Condition doAnd(Condition condition0,
-                                  Condition condition1,
-                                  Condition condition2,
-                                  Condition condition3) {
+            Condition condition1,
+            Condition condition2,
+            Condition condition3) {
         return doAnd(
                 new List<Condition>{
-                    condition0,
-                    condition1,
-                    condition2,
-                    condition3
+                        condition0,
+                        condition1,
+                        condition2,
+                        condition3
                 }
-            );
+        );
     }
 
     public static Condition doAnd(List<Condition> conditions) {
@@ -907,29 +1055,29 @@ public class Query {
     }
 
     public static Condition doOr(Condition condition0,
-                                     Condition condition1,
-                                     Condition condition2) {
+            Condition condition1,
+            Condition condition2) {
         return doOr(
                 new List<Condition>{
-                    condition0,
-                    condition1,
-                    condition2
+                        condition0,
+                        condition1,
+                        condition2
                 }
-            );
+        );
     }
 
     public static Condition doOr(Condition condition0,
-                                 Condition condition1,
-                                 Condition condition2,
-                                 Condition condition3) {
+            Condition condition1,
+            Condition condition2,
+            Condition condition3) {
         return doOr(
                 new List<Condition>{
-                    condition0,
-                    condition1,
-                    condition2,
-                    condition3
+                        condition0,
+                        condition1,
+                        condition2,
+                        condition3
                 }
-            );
+        );
     }
 
 
@@ -982,6 +1130,24 @@ public class Query {
         return this;
     }
 
+    /*
+     * After calling this function, optional clause will be added to the query
+     */
+
+    public Query forView() {
+        optionalClause = 'FOR VIEW';
+        return this;
+    }
+
+    public Query forUpdate() {
+        optionalClause = 'FOR UPDATE';
+        return this;
+    }
+
+    public Query forReference() {
+        optionalClause = 'FOR REFERENCE';
+        return this;
+    }
     public static final DateLiteral YESTERDAY = new DateLiteral('YESTERDAY');
     public static final DateLiteral TODAY = new DateLiteral('TODAY');
     public static final DateLiteral TOMORROW = new DateLiteral('TOMORROW');
@@ -1000,17 +1166,17 @@ public class Query {
     public static final DateLiteral LAST_YEAR = new DateLiteral('LAST_YEAR');
     public static final DateLiteral NEXT_YEAR = new DateLiteral('NEXT_YEAR');
     public static final DateLiteral THIS_FISCAL_QUARTER =
-        new DateLiteral('THIS_FISCAL_QUARTER');
+            new DateLiteral('THIS_FISCAL_QUARTER');
     public static final DateLiteral LAST_FISCAL_QUARTER =
-        new DateLiteral('LAST_FISCAL_QUARTER');
+            new DateLiteral('LAST_FISCAL_QUARTER');
     public static final DateLiteral NEXT_FISCAL_QUARTER =
-        new DateLiteral('NEXT_FISCAL_QUARTER');
+            new DateLiteral('NEXT_FISCAL_QUARTER');
     public static final DateLiteral THIS_FISCAL_YEAR =
-        new DateLiteral('THIS_FISCAL_YEAR');
+            new DateLiteral('THIS_FISCAL_YEAR');
     public static final DateLiteral LAST_FISCAL_YEAR =
-        new DateLiteral('LAST_FISCAL_YEAR');
+            new DateLiteral('LAST_FISCAL_YEAR');
     public static final DateLiteral NEXT_FISCAL_YEAR =
-        new DateLiteral('NEXT_FISCAL_YEAR');
+            new DateLiteral('NEXT_FISCAL_YEAR');
 
     public static DateLiteral LAST_N_DAYS(Integer n) {
         return new DateLiteral('LAST_N_DAYS', n);
@@ -1147,14 +1313,14 @@ public class Query {
     }
 
     public Query addSubquery(String relationshipName,
-                             Set<String> fieldSet) {
+            Set<String> fieldSet) {
         addChildRelationship(relationshipName).selectFields(fields);
 
         return this;
     }
 
     public Query addSubquery(String relationshipName,
-                             List<String> fieldList) {
+            List<String> fieldList) {
         addChildRelationship(relationshipName).selectFields(fields);
 
         return this;
@@ -1184,9 +1350,6 @@ public class Query {
     public Query debug() {
         System.debug(toQueryString());
 
-        for (Integer i = 0; i < conditionArgsIdx; i++) {
-            debugDeep(i);
-        }
         return this;
     }
 
@@ -1217,7 +1380,15 @@ public class Query {
     }
 
     public String toQueryString() {
-        return formQueryString();
+        String rawString = formQueryStringPreformat();
+
+        List<String> args = new List<String>();
+
+        for (Object arg : finalConditionArgs) {
+            args.add(toString(arg));
+        }
+
+        return format(rawString, args);
     }
 
     public SObject fetch() {
@@ -1248,7 +1419,7 @@ public class Query {
         return toSObjectList();
     }
 
-    public List<SObject> runWithOrderedIds(List<Id> idList) {
+    public List<SObject> runPreservingIdOrder(List<Id> idList) {
         Query cloned = this.clone();
         cloned.byId(idList);
 
@@ -1264,12 +1435,12 @@ public class Query {
     }
 
     public List<SObject> toSObjectList() {
-        String queryString = toQueryString();
+        String queryString = formQueryString();
         return Database.query(queryString);
     }
 
     public List<AggregateResult> aggregate() {
-        String queryString = toQueryString();
+        String queryString = formQueryString();
         return Database.query(queryString);
     }
 
@@ -1284,22 +1455,30 @@ public class Query {
     }
 
     public Database.QueryLocator getQueryLocator() {
-        String queryString = toQueryString();
+        String queryString = formQueryString();
         return Database.getQueryLocator(queryString);
     }
 
+    public Schema.SObjectType getSObjectType() {
+        return objectType;
+    }
+
     /* Private members */
-    private Query() {}
+    private Query() {
+    }
 
     // State variables
     private Set<String> fields = new Set<String>();
     private Set<String> parentReferences = new Set<String>();
     private Boolean isSelectingAllFields = false;
+    private Boolean isSelectingEditableFields = false;
+    private Boolean isSelectingCreatableFields = false;
 
     private List<String> conditions = new List<String>();
     private static final Integer maxArgSize = 20;
-    private Integer conditionArgsIdx = 0;
+    private Integer finalConditionArgsIdx = 0;
     private List<Object> conditionArgs = new List<Object>();
+    private List<Object> finalConditionArgs = new List<Object>();
     private Object conditionArgs0;
     private Object conditionArgs1;
     private Object conditionArgs2;
@@ -1322,6 +1501,7 @@ public class Query {
     private Object conditionArgs19;
 
     private String conditionOperator = 'AND';
+    private String optionalClause = '';
     private Integer sizeLimit = -1;
     private Integer resultOffset = -1;
     private Map<String, Query> childQuerys = new Map<String, Query>();
@@ -1348,45 +1528,57 @@ public class Query {
         }
     }
 
-    private List<AggregateTuple> aggregateList = new List<AggregateTuple>();
-    private class AggregateTuple {
+    private List<FunctionFieldTuple> functionFieldList = new List<FunctionFieldTuple>();
+    private class FunctionFieldTuple {
         private String function;
         private String fieldName;
         private String alias;
 
-        private AggregateTuple(String function, String fieldName, String alias) {
+        private FunctionFieldTuple(String function, String fieldName, String alias) {
             this.function = function;
             this.fieldName = fieldName;
             this.alias = alias;
         }
 
-        private AggregateTuple(String function, String fieldName) {
+        private FunctionFieldTuple(String function, String fieldName) {
             this(function, fieldName, null);
         }
     }
 
     private Set<String> groupByFields = new Set<String>();
+    Condition havingCondition;
 
+    private final String EMPTY = '';
     private final String MAX = 'MAX';
     private final String MIN = 'MIN';
     private final String AVG = 'AVG';
     private final String SUM = 'SUM';
     private final String COUNT = 'COUNT';
     private final String COUNT_DISTINCT = 'COUNT_DISTINCT';
+    private final String TO_LABEL = 'TOLABEL';
 
     // Object Schema variables
     private String objectName;
     private Schema.SObjectType objectType;
     private Map<String, Schema.SObjectType> childRelationships;
 
-    private Query addAllFields() {
+    private final String READABLE = 'readable';
+    private final String EDITABLE = 'editable';
+    private final String CREATABLE = 'creatable';
+
+    private Query addAllFields(String accessLevel) {
         // Get all the fields
         final Map<String, Schema.SObjectField> fieldMap =
-            objectType.getDescribe().fields.getMap();
+                objectType.getDescribe().fields.getMap();
 
         // Add the field if it is accessible by the user
         for (String fieldName : fieldMap.keySet()) {
-            if (fieldMap.get(fieldName).getDescribe().isAccessible()) {
+            if (accessLevel == READABLE &&
+                    fieldMap.get(fieldName).getDescribe().isAccessible() ||
+                    accessLevel == EDITABLE &&
+                    fieldMap.get(fieldName).getDescribe().isUpdateable() ||
+                    accessLevel == CREATABLE &&
+                    fieldMap.get(fieldName).getDescribe().isCreateable()) {
                 fields.add(fieldName.toLowerCase());
             }
         }
@@ -1395,7 +1587,7 @@ public class Query {
 
     private Schema.SObjectType getParentObjectType(Schema.SObjectType objType, String parentPath) {
         final String nextItem =
-            appendNamespace(translateParentField(parentPath.substringBefore('.')));
+                appendNamespace(translateParentField(parentPath.substringBefore('.')));
 
         Schema.SObjectField field = objType.getDescribe().fields.getMap().get(nextItem);
 
@@ -1410,7 +1602,7 @@ public class Query {
         }
 
         List<Schema.SObjectType> referenceTo =
-            field.getDescribe().getReferenceTo();
+                field.getDescribe().getReferenceTo();
 
         if (null == referenceTo || referenceTo.isEmpty()) {
             throw new QueryException('Cannot find parent relationship ' + nextItem +
@@ -1430,6 +1622,8 @@ public class Query {
         // translate the reference name
         if (parentName.endsWithIgnoreCase('__r')) {
             parentName = parentName.removeEnd('__r') + '__c';
+        } else if (parentName.endsWithIgnoreCase('__pr')) {
+            parentName = parentName.removeEnd('__pr') + '__pc';
         } else if (parentName.endsWithIgnoreCase('Id')) {
             parentName = parentName;
         } else {
@@ -1442,7 +1636,7 @@ public class Query {
     private static Boolean isParentField(String fieldName) {
         if (fieldName.endsWithIgnoreCase('__c') || fieldName.endsWithIgnoreCase('__pc')) {
             return false;
-        } else if (fieldName.endsWithIgnoreCase('__r')) {
+        } else if (fieldName.endsWithIgnoreCase('__r') || fieldName.endsWithIgnoreCase('__pr')) {
             return true;
         } else if (fieldName.endsWithIgnoreCase('Id')) {
             return false;
@@ -1478,11 +1672,11 @@ public class Query {
 
     private Map<String, Schema.SObjectType> getChildRelationships() {
         Map<String, Schema.SObjectType> childMap =
-            new Map<String, Schema.SObjectType>();
+                new Map<String, Schema.SObjectType>();
         final List<Schema.ChildRelationship> childList =
-            objectType.getDescribe().getChildRelationships();
+                objectType.getDescribe().getChildRelationships();
 
-        for (Schema.ChildRelationship child: childList) {
+        for (Schema.ChildRelationship child : childList) {
             childMap.put(child.getRelationshipName(), child.getChildSObject());
         }
         return childMap;
@@ -1501,40 +1695,29 @@ public class Query {
     private Query addParentFields(String parentName) {
         // Get all the fields from the parent object
         final Map<String, Schema.SObjectField> fieldMap =
-            getParentObjectType(objectType, parentName).getDescribe().fields.getMap();
+                getParentObjectType(objectType, parentName).getDescribe().fields.getMap();
 
         // Add the field if it is accessible by the user
         for (String fieldName : fieldMap.keySet()) {
             if (fieldMap.get(fieldName).getDescribe().isAccessible()) {
-                fields.add((parentName + '.' + fieldName).toLowerCase());
+                fields.add((appendNamespaceToField(parentName) + '.' + fieldName).
+                        toLowerCase());
             }
         }
         return this;
     }
 
-    /*
-     * Add complex condition with a format string and multiple arguments
-     * Example: addComplexCondition('CreatedDate <= {0} AND Name = {1}',
-                    new List<Object>{Datetime.now(), 'Sam'})
-     */
-    @testVisible
-    private Query addComplexCondition(String formatString,
-                                      List<Object> args) {
-        List<String> argStringList = new List<String>();
-
-        conditions.add(formatString);
-        conditionArgs.addAll(args);
-
-        return this;
+    private void saveConditions(List<Object> args) {
+        finalConditionArgsIdx += args.size();
+        finalConditionArgs.addAll(args);
     }
 
     /*
      * Save the arg to the member variable
      */
-    private void saveConditionArg(List<Object> args) {
-        for (Object arg : args) {
-            saveConditionArg(conditionArgsIdx, arg);
-            conditionArgsIdx++;
+    private void saveConditionArg() {
+        for (Integer i = 0; i < finalConditionArgs.size(); i++) {
+            saveConditionArg(i, finalConditionArgs[i]);
         }
     }
 
@@ -1587,13 +1770,28 @@ public class Query {
     }
 
     private String formQueryString() {
-        conditionArgsIdx = 0;
+        String queryStr = formQueryStringPreformat();
+
+        saveConditionArg();
+
+        // format the arguments
+        List<String> args = new List<String>();
+        for (Integer i = 0; i < finalConditionArgsIdx; i++) {
+            args.add(':conditionArgs' + i);
+        }
+        queryStr = format(queryStr, args);
+
+        return queryStr;
+    }
+
+    private String formQueryStringPreformat() {
+        finalConditionArgsIdx = 0;
 
         String query = 'SELECT ';
 
         query += formFieldString();
 
-        if (!aggregateList.isEmpty()) {
+        if (!functionFieldList.isEmpty()) {
             query += ' ' + formAggregateString();
         }
 
@@ -1609,6 +1807,10 @@ public class Query {
             query += ' GROUP BY ' + formGroupByString();
         }
 
+        if (havingCondition != null) {
+            query += ' HAVING ' + formHavingString();
+        }
+
         if (!orderList.isEmpty()) {
             query += ' ORDER BY ' + formOrderByString();
         }
@@ -1621,6 +1823,9 @@ public class Query {
             query += ' OFFSET ' + resultOffset;
         }
 
+        if (!String.isEmpty(optionalClause)) {
+            query += ' ' + optionalClause;
+        }
         return query;
     }
 
@@ -1636,14 +1841,22 @@ public class Query {
         }
 
         if (isSelectingAllFields) {
-            addAllFields();
+            addAllFields(READABLE);
         }
 
-        if (fields.isEmpty() && aggregateList.isEmpty()) {
+        if (isSelectingEditableFields) {
+            addAllFields(EDITABLE);
+        }
+
+        if (isSelectingCreatableFields) {
+            addAllFields(CREATABLE);
+        }
+
+        if (fields.isEmpty() && functionFieldList.isEmpty()) {
             addToFieldSet('Id');
         }
 
-        for (String field: fields) {
+        for (String field : fields) {
             fieldString += field + ', ';
         }
 
@@ -1657,7 +1870,7 @@ public class Query {
     private String formAggregateString() {
         String aggregateString = '';
 
-        for (AggregateTuple tuple : aggregateList) {
+        for (FunctionFieldTuple tuple : functionFieldList) {
             checkFieldLevelSecurity(objectType, tuple.fieldName);
         }
 
@@ -1665,9 +1878,13 @@ public class Query {
             aggregateString += ', ';
         }
 
-        for (AggregateTuple tuple : aggregateList) {
+        for (FunctionFieldTuple tuple : functionFieldList) {
             String field = appendNamespaceToField(tuple.fieldName);
-            aggregateString += tuple.function + '(' + field + ')';
+            if (String.isNotBlank(tuple.function)) {
+                aggregateString += tuple.function + '(' + field + ')';
+            } else {
+                aggregateString += field + ' ';
+            }
             if (tuple.alias != null) {
                 aggregateString += tuple.alias;
             }
@@ -1685,22 +1902,25 @@ public class Query {
         for (String condition : conditions) {
             conditionString += condition;
             // either 'AND' or 'OR'
-            conditionString += ' ' + conditionOperator +  ' ';
+            conditionString += ' ' + conditionOperator + ' ';
         }
 
         // remove either 'AND' or 'OR' in the end
         conditionString = conditionString.removeEnd(' ' + conditionOperator + ' ');
 
         // shift the arg index
-        conditionString = shiftFormatStringIndice(conditionString, conditionArgsIdx);
-        saveConditionArg(conditionArgs);
+        conditionString = shiftFormatStringIndice(conditionString, finalConditionArgsIdx);
+        saveConditions(conditionArgs);
 
-        // format the arguments
-        List<String> args = new List<String>();
-        for (Integer i = 0; i < conditionArgsIdx; i++) {
-            args.add(':conditionArgs' + i);
-        }
-        conditionString = format(conditionString, args);
+        return conditionString;
+    }
+
+    private String formHavingString() {
+        String conditionString =
+                shiftFormatStringIndice(havingCondition.conditionString, finalConditionArgsIdx);
+
+        // shift the arg index
+        saveConditions(havingCondition.args);
 
         return conditionString;
     }
@@ -1708,15 +1928,16 @@ public class Query {
     private String formSubqueryString() {
         String subqueryString = '';
 
-        for (String key: childQuerys.keySet()) {
+        for (String key : childQuerys.keySet()) {
             Query childQuery = childQuerys.get(key);
 
             subqueryString += '(';
-            subqueryString += shiftArgStringIndice(childQuery.toQueryString(), conditionArgsIdx);
+            subqueryString += shiftFormatStringIndice(childQuery.formQueryStringPreformat(),
+                    finalConditionArgsIdx);
             subqueryString += ')';
             subqueryString += ', ';
 
-            saveConditionArg(childQuery.conditionArgs);
+            saveConditions(childQuery.conditionArgs);
         }
 
         return subqueryString;
@@ -1751,7 +1972,7 @@ public class Query {
             if (singleOrder.nullsFirst) {
                 orderByString += ' NULLS FIRST';
             } else {
-                orderbyString += ' NULLS LAST';
+                orderByString += ' NULLS LAST';
             }
             count++;
         }
@@ -1760,13 +1981,13 @@ public class Query {
 
     private Boolean checkFieldLevelSecurity(Schema.SObjectType objType, String fieldPath) {
         String nextItem =
-            fieldPath.substringBefore('.');
+                fieldPath.substringBefore('.');
 
         if (!fieldPath.contains('.')) {
             nextItem = appendNamespace(nextItem);
 
             final Map<String, Schema.SObjectField> fieldMap =
-                objType.getDescribe().fields.getMap();
+                    objType.getDescribe().fields.getMap();
 
             if (null == fieldMap.get(nextItem)) {
                 throw new QueryException('Cannot find ' + nextItem +
@@ -1780,7 +2001,7 @@ public class Query {
             return checkFieldLevelSecurity(
                     getParentObjectType(objType, nextItem),
                     fieldPath.substringAfter('.')
-                );
+            );
         }
 
         return true;
@@ -1839,26 +2060,6 @@ public class Query {
     }
 
     /*
-     * This function shifts the conditionArg index in the given string
-     * Example:
-     *  after passing
-     *      'Name = :conditionArgs0 AND Phone = :conditionArgs1'
-     *      and shift 2,
-     *  The returned string is
-     *      'Name = :conditionArgs2 AND Phone = :conditionArgs3'
-     */
-    private static String shiftArgStringIndice(String argString, Integer shift) {
-        for (Integer i = maxArgSize - shift - 1; i >= 0; i--) {
-            final String target = ':conditionArgs' + i;
-            final String replacement = ':conditionArgs' + (i + shift);
-
-            argString = argString.replace(target, replacement);
-        }
-
-        return argString;
-    }
-
-    /*
      * Replacement of String.format
      */
     private static String format(String formatString, List<String> args) {
@@ -1868,73 +2069,33 @@ public class Query {
         return formatString;
     }
 
-    private void debugDeep(Integer idx) {
-        if (idx == 0) {
-            System.debug('conditionArgs' + idx + ': ' + toString(conditionArgs0));
-        } else if (idx == 1) {
-            System.debug('conditionArgs' + idx + ': ' + toString(conditionArgs1));
-        } else if (idx == 2) {
-            System.debug('conditionArgs' + idx + ': ' + toString(conditionArgs2));
-        } else if (idx == 3) {
-            System.debug('conditionArgs' + idx + ': ' + toString(conditionArgs3));
-        } else if (idx == 4) {
-            System.debug('conditionArgs' + idx + ': ' + toString(conditionArgs4));
-        } else if (idx == 5) {
-            System.debug('conditionArgs' + idx + ': ' + toString(conditionArgs5));
-        } else if (idx == 6) {
-            System.debug('conditionArgs' + idx + ': ' + toString(conditionArgs6));
-        } else if (idx == 7) {
-            System.debug('conditionArgs' + idx + ': ' + toString(conditionArgs7));
-        } else if (idx == 8) {
-            System.debug('conditionArgs' + idx + ': ' + toString(conditionArgs8));
-        } else if (idx == 9) {
-            System.debug('conditionArgs' + idx + ': ' + toString(conditionArgs9));
-        } else if (idx == 10) {
-            System.debug('conditionArgs' + idx + ': ' + toString(conditionArgs10));
-        } else if (idx == 11) {
-            System.debug('conditionArgs' + idx + ': ' + toString(conditionArgs11));
-        } else if (idx == 12) {
-            System.debug('conditionArgs' + idx + ': ' + toString(conditionArgs12));
-        } else if (idx == 13) {
-            System.debug('conditionArgs' + idx + ': ' + toString(conditionArgs13));
-        } else if (idx == 14) {
-            System.debug('conditionArgs' + idx + ': ' + toString(conditionArgs14));
-        } else if (idx == 15) {
-            System.debug('conditionArgs' + idx + ': ' + toString(conditionArgs15));
-        } else if (idx == 16) {
-            System.debug('conditionArgs' + idx + ': ' + toString(conditionArgs16));
-        } else if (idx == 17) {
-            System.debug('conditionArgs' + idx + ': ' + toString(conditionArgs17));
-        } else if (idx == 18) {
-            System.debug('conditionArgs' + idx + ': ' + toString(conditionArgs18));
-        } else if (idx == 19) {
-            System.debug('conditionArgs' + idx + ': ' + toString(conditionArgs19));
-        }
-    }
-
     /*
      * Convert an argument to a part of a query string
      * If the argument is a list or a set, the string has brackets surrounded
      * Otherwise it returns the string representation of the input
      */
     private static String toString(Object obj) {
-        if (obj instanceOf Set<Id>) {
-            return toString((Set<Id>)obj);
-        } else if (obj instanceOf Set<String>) {
-            return toString((Set<String>)obj);
-        } else if (obj instanceOf Set<Integer>) {
-            return toString((Set<Integer>)obj);
-        } else if (obj instanceOf Set<Decimal>) {
-            return toString((Set<Decimal>)obj);
-        } else if (obj instanceOf List<String> ||
-                   obj instanceOf List<Id>) {
-            return toString((List<String>)obj);
-        } else if (obj instanceOf List<Decimal> ||
-                   obj instanceOf List<Integer>) {
-            return toString((List<Decimal>)obj);
-        } else if (obj instanceOf Id ||
-                   obj instanceOf String) {
+        if (obj == null) {
+            return 'null';
+        } else if (obj instanceof Set<Id>) {
+            return toString((Set<Id>) obj);
+        } else if (obj instanceof Set<String>) {
+            return toString((Set<String>) obj);
+        } else if (obj instanceof Set<Integer>) {
+            return toString((Set<Integer>) obj);
+        } else if (obj instanceof Set<Decimal>) {
+            return toString((Set<Decimal>) obj);
+        } else if (obj instanceof List<String> ||
+                obj instanceof List<Id>) {
+            return toString((List<String>) obj);
+        } else if (obj instanceof List<Decimal> ||
+                obj instanceof List<Integer>) {
+            return toString((List<Decimal>) obj);
+        } else if (obj instanceof Id ||
+                obj instanceof String) {
             return '\'' + String.valueOf(obj) + '\'';
+        } else if (obj instanceof Datetime) {
+            return JSON.serialize(obj).replaceAll('"', '');
         } else {
             return String.valueOf(obj);
         }
@@ -1969,7 +2130,7 @@ public class Query {
      */
     private static Set<Object> toObjectSet(Set<Id> items) {
         Set<Object> result = new Set<Object>();
-        for (Id item: items) {
+        for (Id item : items) {
             result.add(item);
         }
         return result;
@@ -1977,7 +2138,7 @@ public class Query {
 
     private static Set<Object> toObjectSet(Set<String> items) {
         Set<Object> result = new Set<Object>();
-        for (String item: items) {
+        for (String item : items) {
             result.add(item);
         }
         return result;
@@ -1985,7 +2146,7 @@ public class Query {
 
     private static Set<Object> toObjectSet(Set<Integer> items) {
         Set<Object> result = new Set<Object>();
-        for (Integer item: items) {
+        for (Integer item : items) {
             result.add(item);
         }
         return result;
@@ -1993,7 +2154,7 @@ public class Query {
 
     private static Set<Object> toObjectSet(Set<Decimal> items) {
         Set<Object> result = new Set<Object>();
-        for (Decimal item: items) {
+        for (Decimal item : items) {
             result.add(item);
         }
         return result;
@@ -2001,7 +2162,7 @@ public class Query {
 
     private static Set<Object> toObjectSet(List<Object> items) {
         Set<Object> result = new Set<Object>();
-        for (Object item: items) {
+        for (Object item : items) {
             result.add(item);
         }
         return result;
@@ -2017,7 +2178,7 @@ public class Query {
 
         childQuery.objectName = relationshipName;
         childQuery.objectType =
-            childRelationships.get(relationshipName);
+                childRelationships.get(relationshipName);
 
         childQuerys.put(relationshipName, childQuery);
 
@@ -2033,7 +2194,7 @@ public class Query {
         }
 
         childQuery.objectType =
-            childRelationships.get(relationshipName);
+                childRelationships.get(relationshipName);
 
         childQuerys.put(relationshipName, childQuery);
 
@@ -2118,9 +2279,9 @@ public class Query {
             Condition newCondition = this.clone();
 
             newCondition.conditionString =
-                '(' + this.conditionString + ') AND (' +
-                shiftFormatStringIndice(other.conditionString, this.args.size()) +
-                ')';
+                    '(' + this.conditionString + ') AND (' +
+                    shiftFormatStringIndice(other.conditionString, this.args.size()) +
+                    ')';
 
             newCondition.args.addAll(other.args);
 
@@ -2131,9 +2292,9 @@ public class Query {
             Condition newCondition = this.clone();
 
             newCondition.conditionString =
-                '(' + this.conditionString + ') OR (' +
-                shiftFormatStringIndice(other.conditionString, this.args.size()) +
-                ')';
+                    '(' + this.conditionString + ') OR (' +
+                    shiftFormatStringIndice(other.conditionString, this.args.size()) +
+                    ')';
             newCondition.args.addAll(other.args);
 
             return newCondition;
@@ -2143,7 +2304,7 @@ public class Query {
             Condition newCondition = this.clone();
 
             newCondition.conditionString =
-                '(NOT (' + this.conditionString + '))';
+                    '(NOT (' + this.conditionString + '))';
 
             return newCondition;
         }
@@ -2154,8 +2315,8 @@ public class Query {
 
         private Condition(String formatString, Object arg) {
             this();
-            if (arg instanceOf DateLiteral) {
-                DateLiteral literal = (DateLiteral)arg;
+            if (arg instanceof DateLiteral) {
+                DateLiteral literal = (DateLiteral) arg;
                 String literalExpression = literal.name;
 
                 if (literal.num != null) {

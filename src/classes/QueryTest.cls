@@ -42,6 +42,38 @@ public class QueryTest {
     }
 
     @isTest
+    static void selectAllFieldsTest() {
+        createData();
+        List<Account> accounts;
+
+        accounts = new Query('Account').
+            selectAllFields().
+            run();
+
+        assertAccount(accounts.get(0));
+
+        accounts = new Query(Account.getSObjectType()).
+            selectEditableFields().
+            run();
+
+        assertAccount(accounts.get(0));
+
+        accounts = new Query(Account.getSObjectType()).
+            selectCreatableFields().
+            run();
+
+        assertAccount(accounts.get(0));
+    }
+
+    @isTest
+    static void getSObjectTypeTest() {
+        System.assertEquals(
+            new Query('Account').getSObjectType(),
+            Account.getSObjectType()
+        );
+    }
+
+    @isTest
     static void fetchTest() {
         Account acc0 = new Account(Name = 'Account 0');
         Account acc1 = new Account(Name = 'Account 1');
@@ -83,7 +115,17 @@ public class QueryTest {
     }
 
     @isTest
-    static void runWithOrderedIdsTest() {
+    static void OptionalClauseTest() {
+        createData();
+
+        List<Account> accountsForView = new Query('Account').forView().run();
+        List<Account> accountsForUpdate = new Query('Account').forUpdate().run();
+        List<Account> accountsForReference = new Query('Account').forReference().run();
+
+    }
+
+    @isTest
+    static void runPreservingIdOrderTest() {
         Account acc0 = new Account(Name = 'Account 0');
         Account acc1 = new Account(Name = 'Account 1');
         Account acc2 = new Account(Name = 'Account 2');
@@ -94,7 +136,7 @@ public class QueryTest {
 
         List<Id> idList = new List<Id>{ acc0.Id, acc1.Id, acc2.Id, acc0.Id };
 
-        List<Account> accounts = new Query('Account').runWithOrderedIds(idList);
+        List<Account> accounts = new Query('Account').runPreservingIdOrder(idList);
 
         System.assertEquals(accounts.get(0).Id, acc0.Id);
         System.assertEquals(accounts.get(1).Id, acc1.Id);
@@ -680,6 +722,48 @@ public class QueryTest {
     }
 
     @isTest
+    static void toQueryStringTest() {
+        createData();
+
+        String queryString = new Query('Account').
+                    selectAllFields().
+                    addCondition(
+                        Query.doOr(
+                            Query.conditionIn('Name', new Set<String>{'ABC Ltd'}),
+                            Query.conditionEq('Phone', 'N/A')
+                        )
+                    ).
+                    addSubquery(
+                        Query.subquery('Opportunities').
+                        selectFields('Name, CloseDate, TotalOpportunityQuantity').
+                        addCondition(
+                            Query.doOr(
+                                Query.conditionIn('TotalOpportunityQuantity',
+                                        new Set<Integer>{10}),
+                                Query.conditionEq('Name', 'N/A'),
+                                Query.doAnd(
+                                    Query.conditionEq('CloseDate', Date.today().addDays(1)),
+                                    Query.conditionEq('Name', 'N/A'),
+                                    Query.conditionEq('Name', 'N/A')
+                                ),
+                                Query.doOr(
+                                    Query.conditionEq('CloseDate', Query.TODAY),
+                                    Query.conditionEq('Name', 'N/A'),
+                                    Query.conditionEq('Name', 'N/A')
+                                )
+                            )
+                        )
+                    ).
+                    toQueryString();
+
+        List<Account> accounts = Database.query(queryString);
+
+        assertAccount(accounts.get(0));
+        assertOpportunity(accounts.get(0).Opportunities.get(0));
+
+    }
+
+    @isTest
     static void conditionWithConstArgumentTest() {
         createData();
 
@@ -874,6 +958,31 @@ public class QueryTest {
     }
 
     @isTest
+    static void toLabelTest() {
+        Account acc1 = new Account(Name = 'New Account 1');
+
+        insert acc1;
+
+        Opportunity opp = new Opportunity(
+                AccountId = acc1.Id,
+                Name = 'New Opportunity',
+                CloseDate = Date.today().addDays(3),
+                TotalOpportunityQuantity = 10,
+                StageName = 'New');
+        insert opp;
+
+        List<Opportunity> opp0 = new Query('Opportunity').
+                selectField('Id').
+                toLabel('StageName').addConditionEq('Id', opp.Id).run();
+        System.assertEquals(opp0[0].get('StageName'), 'New');
+
+        List<Opportunity> opp1 = new Query('Opportunity').
+                selectField('Id').
+                toLabel('StageName', 'myStageName').addConditionEq('Id', opp.Id).run();
+        System.assertEquals(opp1[0].get('myStageName'), 'New');
+    }
+
+    @isTest
     static void groupByTest() {
         Account acc1 = new Account(Name = 'Account 1', Rating = '1', NumberOfEmployees = 1);
         Account acc2 = new Account(Name = 'Account 2', Rating = '9', NumberOfEmployees = 3);
@@ -884,7 +993,7 @@ public class QueryTest {
 
         List<AggregateResult> results =
             new Query('Account').
-            selectField('Rating').
+            selectField('Rating', 'rate').
             count('Name', 'countName').
             max('NumberOfEmployees', 'maxEmployee').
             min('NumberOfEmployees', 'minEmployee').
@@ -896,7 +1005,7 @@ public class QueryTest {
         Map<String, AggregateResult> resultMap = new Map<String, AggregateResult>();
 
         for (AggregateResult result : results) {
-            resultMap.put((String)result.get('Rating'), result);
+            resultMap.put((String)result.get('rate'), result);
         }
 
         System.assertEquals(resultMap.get('1').get('countName'), 2);
@@ -909,6 +1018,102 @@ public class QueryTest {
         System.assertEquals(resultMap.get('9').get('minEmployee'), 3);
         System.assertEquals(resultMap.get('9').get('avgEmployee'), 3);
         System.assertEquals(resultMap.get('9').get('sumEmployee'), 3);
+    }
+
+    @isTest
+    static void groupByWithHavingTest() {
+        Account acc1 = new Account(Name = 'Account 1', Rating = '1', NumberOfEmployees = 1);
+        Account acc2 = new Account(Name = 'Account 2', Rating = '9', NumberOfEmployees = 3);
+        Account acc3 = new Account(Name = 'Account 3', Rating = '1', NumberOfEmployees = 5);
+        Account acc4 = new Account(Name = 'Account 4', Rating = null, NumberOfEmployees = 7);
+
+        insert new List<Account>{acc1, acc2, acc3, acc4};
+
+        List<AggregateResult> results =
+            new Query('Account').
+            selectField('Rating').
+            count('Name', 'countName').
+            addConditionGe('NumberOfEmployees', 1).
+            groupBy('Rating').
+            addHaving(Query.doAnd(
+                Query.conditionGe('Count(Name)', 2),
+                Query.conditionNotEq('Rating', null)
+            )).
+            aggregate();
+
+        Map<String, AggregateResult> resultMap = new Map<String, AggregateResult>();
+
+        for (AggregateResult result : results) {
+            resultMap.put((String)result.get('Rating'), result);
+        }
+
+        System.assertEquals(resultMap.get('1').get('countName'), 2);
+        System.assertEquals(resultMap.get('9'), null);
+    }
+
+    @isTest
+    static void semiJoinTest() {
+        Account acc = new Account(Name = 'New Account');
+        insert acc;
+
+        Opportunity opp = new Opportunity(
+            AccountId = acc.Id,
+            Name = 'New Opportunity',
+            CloseDate = Date.today().addDays(3),
+            TotalOpportunityQuantity = 10,
+            StageName = 'New',
+            IsPrivate = false);
+        insert opp;
+
+        Account acc2 = (Account)new Query('Account').
+            addConditionIn('Id', new Query('Opportunity').
+                    selectField('AccountId').
+                    byId(opp.Id)).
+            fetch();
+
+        System.assertEquals(acc.Id, acc2.Id);
+
+        Account acc3 = (Account)new Query('Account').
+            lookup('Id', new Query('Opportunity').
+                    selectField('AccountId').
+                    addConditionEq('StageName', 'New').
+                    byId(opp.Id)).
+            addConditionEq('Name', 'New Account').
+            fetch();
+
+        System.assertEquals(acc.Id, acc3.Id);
+
+        Opportunity opp2 = (Opportunity)new Query('Opportunity').
+            lookup('AccountId', new Query('Account').
+                    selectField('Id').
+                    byId(acc.Id)).
+            fetch();
+
+        System.assertEquals(opp.Id, opp2.Id);
+    }
+
+    static void antiJoinTest() {
+        Account acc1 = new Account(Name = 'New Account 1');
+        insert acc1;
+        Account acc2 = new Account(Name = 'New Account 2');
+        insert acc2;
+
+        Opportunity opp = new Opportunity(
+            AccountId = acc1.Id,
+            Name = 'New Opportunity',
+            CloseDate = Date.today().addDays(3),
+            TotalOpportunityQuantity = 10,
+            StageName = 'New',
+            IsPrivate = false);
+        insert opp;
+
+        Account acc3 = (Account)new Query('Account').
+            addConditionNotIn('Id', new Query('Opportunity').
+                    selectField('AccountId').
+                    byId(opp.Id)).
+            fetch();
+
+        System.assertEquals(acc2, acc3);
     }
 
     @isTest
